@@ -1,0 +1,22 @@
+# Which challenges the Lichess BOT accepts, and how it plays per time control.
+accept:
+  variants: [standard]
+  speeds: [bullet, blitz, rapid, classical]   # correspondence/unlimited are declined
+  modes: [casual, rated]
+  allow_bots: true
+  allow_humans: true
+  max_games: 2          # concurrent games; further challenges get "later"
+
+# Persona per speed. Fields match BotSettings: elo (null = full strength), style, opening.
+# A repertoire opening is only used when its side matches the color the bot gets.
+personas:
+  default:   {elo: null, style: balanced, opening: null}
+  bullet:    {elo: null, style: balanced}
+  blitz:     {elo: null, style: aggressive}
+  rapid:     {elo: null, style: balanced}
+  classical: {elo: null, style: balanced}
+
+engine:
+  threads: 2
+  hash_mb: 256
+  move_overhead_ms: 100   # time reserved per move for network lag

@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sem's Chess Bot</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/chessground@9.2.1/assets/chessground.base.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/chessground@9.2.1/assets/chessground.brown.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/chessground@9.2.1/assets/chessground.cburnett.css">
+<style>
+  :root {
+    --bg: #f4f1ec; --panel: #ffffff; --ink: #1f1d1a; --muted: #6d675f; --line: #e3ddd3;
+    --accent: #b5651d; --accent-ink: #ffffff; --good: #2f7d4f; --bad: #b23b3b;
+    --bar-white: #f7f4ef; --bar-black: #2a2723;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161512; --panel: #211f1c; --ink: #ece8e1; --muted: #9c958a; --line: #34312c;
+      --accent: #d98a3d; --accent-ink: #161512; --good: #6cc38d; --bad: #c95454;
+      --bar-white: #e9e5dd; --bar-black: #3b3834;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 1120px; margin: 0 auto; padding: 24px 16px;
+         display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 24px; align-items: start; }
+  @media (max-width: 860px) { main { grid-template-columns: 1fr; } }
+
+  .board-wrap { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px;
+                max-width: max(320px, calc(100vh - 100px + 32px)); margin: 0 auto; }
+  .evalbar { position: relative; border-radius: 4px; overflow: hidden; background: var(--bar-black); }
+  .evalbar .white { position: absolute; left: 0; right: 0; bottom: 0; height: 50%;
+                    background: var(--bar-white); transition: height .4s ease; }
+  .evalbar .label { position: absolute; left: 0; right: 0; font-size: 10px; font-weight: 700;
+                    text-align: center; writing-mode: vertical-rl; padding: 4px 0; }
+  #board { width: 100%; aspect-ratio: 1; }
+  .board-meta { grid-column: 2; display: flex; justify-content: space-between; color: var(--muted);
+                font-size: 13px; margin-top: 6px; min-height: 20px; }
+
+  aside { display: flex; flex-direction: column; gap: 16px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+  h1 { font-size: 20px; margin: 0 0 2px; letter-spacing: -.01em; }
+  .sub { color: var(--muted); font-size: 13px; margin: 0 0 14px; }
+  label.field { display: block; font-size: 12px; font-weight: 600; text-transform: uppercase;
+                letter-spacing: .04em; color: var(--muted); margin: 12px 0 5px; }
+  select, input[type=range] { width: 100%; }
+  select { padding: 7px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font: inherit; }
+  input[type=range] { accent-color: var(--accent); }
+  .row { display: flex; align-items: center; gap: 10px; }
+  .row .grow { flex: 1; }
+  .elo-value { font-variant-numeric: tabular-nums; font-weight: 700; min-width: 44px; text-align: right; }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .seg { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .seg input { position: absolute; opacity: 0; pointer-events: none; }
+  .seg label { text-align: center; padding: 7px 0; cursor: pointer; font-size: 14px; }
+  .seg input:checked + label { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+  .seg input:focus-visible + label { outline: 2px solid var(--accent); outline-offset: -2px; }
+  button { font: inherit; border-radius: 6px; border: 1px solid var(--line); background: var(--bg);
+           color: var(--ink); padding: 7px 12px; cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent);
+                   font-weight: 600; width: 100%; margin-top: 16px; padding: 10px; }
+  .actions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 12px; }
+  .actions button { padding: 7px 0; font-size: 13px; }
+
+  #status { font-weight: 600; }
+  #status.win { color: var(--good); } #status.loss { color: var(--bad); }
+  #source { font-size: 13px; color: var(--muted); min-height: 19px; }
+  #moves { margin-top: 10px; max-height: 220px; overflow-y: auto; display: grid;
+           grid-template-columns: 34px 1fr 1fr; font-variant-numeric: tabular-nums; font-size: 14px; }
+  #moves span { padding: 2px 4px; } #moves .n { color: var(--muted); }
+  #moves .cur { background: color-mix(in srgb, var(--accent) 22%, transparent); border-radius: 4px; }
+  .toggle { display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; }
+  #analysis { margin-top: 8px; font-size: 13px; display: flex; flex-direction: column; gap: 6px; }
+  #analysis .line { display: flex; gap: 8px; } #analysis .sc { font-weight: 700; min-width: 48px; font-variant-numeric: tabular-nums; }
+  #analysis .pv { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  dialog { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--ink); padding: 14px; }
+  dialog::backdrop { background: rgb(0 0 0 / .35); }
+  .promo { display: flex; gap: 8px; }
+  .promo button { font-size: 34px; line-height: 1; width: 58px; height: 58px; padding: 0; }
+  #toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: var(--bad);
+           color: #fff; padding: 8px 14px; border-radius: 6px; font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  #toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<main>
+  <section>
+    <div class="board-wrap">
+      <div class="evalbar" id="evalbar" title="Engine evaluation"><div class="white" id="evalfill"></div><div class="label" id="evallabel"></div></div>
+      <div id="board"></div>
+      <div class="board-meta"><span id="source"></span></div>
+    </div>
+  </section>
+
+  <aside>
+    <div class="card">
+      <h1>Sem's Chess Bot</h1>
+      <p class="sub">Stockfish 19 core · openings · playstyles · ELO</p>
+
+      <label class="field">Play as</label>
+      <div class="seg">
+        <input type="radio" name="color" id="c-white" value="white" checked><label for="c-white">White</label>
+        <input type="radio" name="color" id="c-random" value="random"><label for="c-random">Random</label>
+        <input type="radio" name="color" id="c-black" value="black"><label for="c-black">Black</label>
+      </div>
+
+      <label class="field" for="elo">Bot strength</label>
+      <div class="row">
+        <input class="grow" type="range" id="elo" min="400" max="3190" step="10" value="1500">
+        <span class="elo-value" id="elo-value">1500</span>
+      </div>
+      <label class="toggle" style="margin-top:6px"><input type="checkbox" id="max"> Full strength (no limit)</label>
+      <div class="hint" id="elo-hint"></div>
+
+      <label class="field" for="style">Playstyle</label>
+      <select id="style"></select>
+
+      <label class="field" for="opening">Bot's opening</label>
+      <select id="opening"></select>
+
+      <label class="field" for="movetime">Think time per move</label>
+      <select id="movetime">
+        <option value="0.2">0.2 s (blitz)</option>
+        <option value="0.5">0.5 s</option>
+        <option value="1" selected>1 s</option>
+        <option value="2">2 s</option>
+        <option value="5">5 s (deep)</option>
+      </select>
+
+      <button class="primary" id="new">New game</button>
+    </div>
+
+    <div class="card">
+      <div id="status">Connecting…</div>
+      <div id="moves"></div>
+      <div class="actions">
+        <button id="undo" title="Take back your last move">Undo</button>
+        <button id="flip" title="Flip board">Flip</button>
+        <button id="resign">Resign</button>
+        <button id="pgn" title="Copy PGN to clipboard">PGN</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <label class="toggle"><input type="checkbox" id="analyse"> Analysis mode (show engine lines)</label>
+      <div id="analysis"></div>
+    </div>
+  </aside>
+</main>
+
+<dialog id="promo"><div class="promo">
+  <button data-p="q" aria-label="Queen">♛</button><button data-p="r" aria-label="Rook">♜</button>
+  <button data-p="b" aria-label="Bishop">♝</button><button data-p="n" aria-label="Knight">♞</button>
+</div></dialog>
+<div id="toast" role="status"></div>
+
+<script type="module">
+import { Chessground } from 'https://cdn.jsdelivr.net/npm/chessground@9.2.1/+esm';
+
+const $ = (id) => document.getElementById(id);
+let meta, state, ws, cg, thinking = false, flipped = false;
+
+const STYLE_LABELS = {
+  balanced: 'Balanced: plays like Stockfish', aggressive: 'Aggressive: checks, attacks, pawn storms',
+  solid: 'Solid: safe king, trades when ahead', tactical: 'Tactical: forcing, sharp lines',
+  gambit: 'Gambit: sacrifices for initiative',
+};
+
+function toast(msg) {
+  const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toast.timer); toast.timer = setTimeout(() => t.classList.remove('show'), 2500);
+}
+function send(obj) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj)); }
+function chosenColor() { return document.querySelector('input[name=color]:checked').value; }
+function settings() {
+  return {
+    elo: $('max').checked ? null : Number($('elo').value),
+    style: $('style').value,
+    opening: $('opening').value || null,
+    movetime: Number($('movetime').value),
+  };
+}
+
+function fillOpenings() {
+  // Openings only matter at the start of a game, so follow the "Play as" picker for the next game.
+  const human = chosenColor();
+  const botSide = human === 'white' ? 'black' : human === 'black' ? 'white' : null;
+  const sel = $('opening'), keep = sel.value;
+  sel.innerHTML = '<option value="">Engine decides</option>';
+  for (const side of ['white', 'black']) {
+    if (botSide && side !== botSide) continue;
+    const group = document.createElement('optgroup');
+    group.label = side === 'white' ? 'White openings' : 'Black defenses';
+    for (const o of meta.openings.filter((o) => o.side === side)) group.append(new Option(`${o.name} (${o.eco})`, o.id));
+    sel.append(group);
+  }
+  sel.value = [...sel.options].some((o) => o.value === keep) ? keep : '';
+}
+
+function updateEloHint() {
+  const max = $('max').checked, elo = Number($('elo').value), style = $('style').value;
+  $('elo').disabled = max;
+  $('elo-value').textContent = max ? 'Max' : elo;
+  $('elo-hint').textContent = max
+    ? (style === 'balanced' ? 'Pure Stockfish at full strength.' : 'Near full strength; may give up a few centipawns to play in style.')
+    : (elo >= meta.elo.native_min && style === 'balanced' ? "Uses Stockfish's calibrated ELO limiter." : 'Approximate ELO (sampled from engine candidates).');
+}
+
+function evalToText(ev) {
+  if (!ev) return '';
+  if (ev.mate != null) return `#${ev.mate}`;
+  const p = ev.cp / 100; return (p > 0 ? '+' : '') + p.toFixed(1);
+}
+function evalToWhitePct(ev) {
+  if (!ev) return 50;
+  if (ev.mate != null) return ev.mate > 0 ? 100 : 0;
+  return 50 + 50 * (2 / (1 + Math.exp(-0.00368208 * ev.cp)) - 1);
+}
+
+function renderEval(orientation) {
+  const pct = evalToWhitePct(state.eval);
+  const bottomIsWhite = orientation === 'white';
+  const fill = $('evalfill'), label = $('evallabel');
+  fill.style.height = `${bottomIsWhite ? pct : 100 - pct}%`;
+  fill.style.background = bottomIsWhite ? 'var(--bar-white)' : 'var(--bar-black)';
+  $('evalbar').style.background = bottomIsWhite ? 'var(--bar-black)' : 'var(--bar-white)';
+  label.textContent = evalToText(state.eval);
+  const whiteAhead = pct >= 50;
+  const atBottom = whiteAhead === bottomIsWhite;
+  label.style.top = atBottom ? 'auto' : '0';
+  label.style.bottom = atBottom ? '0' : 'auto';
+  label.style.color = whiteAhead ? 'var(--bar-black)' : 'var(--bar-white)';
+}
+
+function render() {
+  if (!state) return;
+  const orientation = flipped ? (state.human === 'white' ? 'black' : 'white') : state.human;
+  const canMove = !state.result && !thinking && state.turn === state.human;
+  cg.set({
+    fen: state.fen,
+    orientation,
+    turnColor: state.turn,
+    lastMove: state.last_move || undefined,
+    check: state.check,
+    movable: { color: canMove ? state.human : undefined, dests: new Map(Object.entries(state.dests)) },
+  });
+  renderEval(orientation);
+
+  const moves = $('moves'); moves.innerHTML = '';
+  state.san.forEach((san, i) => {
+    if (i % 2 === 0) { const n = document.createElement('span'); n.className = 'n'; n.textContent = `${i / 2 + 1}.`; moves.append(n); }
+    const s = document.createElement('span'); s.textContent = san; if (i === state.san.length - 1) s.className = 'cur'; moves.append(s);
+  });
+  moves.scrollTop = moves.scrollHeight;
+
+  $('source').textContent = state.bot_source ? `Bot move source: ${state.bot_source}` : '';
+  const st = $('status'); st.className = '';
+  if (state.result) {
+    const r = state.result.result;
+    const humanWon = (r === '1-0' && state.human === 'white') || (r === '0-1' && state.human === 'black');
+    const draw = r === '1/2-1/2';
+    st.textContent = `${draw ? 'Draw' : humanWon ? 'You win!' : 'Bot wins'} · ${r} (${state.result.reason})`;
+    if (!draw) st.className = humanWon ? 'win' : 'loss';
+  } else {
+    st.textContent = thinking ? 'Bot is thinking…' : state.turn === state.human ? `Your move (${state.human})` : 'Waiting for bot…';
+  }
+  if (!$('analyse').checked) $('analysis').innerHTML = '';
+  else if (canMove && render.lastAnalysed !== state.fen) { render.lastAnalysed = state.fen; send({ type: 'analyse', seconds: 0.8 }); }
+}
+
+function renderAnalysis(msg) {
+  if (!state || msg.fen !== state.fen || !$('analyse').checked) return;
+  $('analysis').innerHTML = '';
+  for (const l of msg.lines) {
+    const row = document.createElement('div'); row.className = 'line';
+    const sc = document.createElement('span'); sc.className = 'sc'; sc.textContent = evalToText(l);
+    const pv = document.createElement('span'); pv.className = 'pv'; pv.textContent = l.san; pv.title = `${l.san} (depth ${l.depth})`;
+    row.append(sc, pv); $('analysis').append(row);
+  }
+}
+
+function onUserMove(orig, dest) {
+  const piece = cg.state.pieces.get(dest);
+  const promoting = piece && piece.role === 'pawn' && (dest[1] === '8' || dest[1] === '1');
+  cg.set({ movable: { color: undefined } });
+  if (!promoting) return send({ type: 'move', uci: orig + dest });
+  const dlg = $('promo');
+  dlg.onclick = (e) => {
+    const p = e.target.dataset && e.target.dataset.p;
+    if (!p) return;
+    dlg.close(); send({ type: 'move', uci: orig + dest + p });
+  };
+  dlg.oncancel = (e) => { e.preventDefault(); };
+  dlg.showModal();
+}
+
+function connect() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://${location.host}/ws/game`);
+  ws.onopen = () => send({ type: 'new_game', color: chosenColor(), settings: settings() });
+  ws.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+    if (msg.type === 'state') { state = msg; thinking = false; render(); }
+    else if (msg.type === 'thinking') { thinking = true; render(); }
+    else if (msg.type === 'analysis') renderAnalysis(msg);
+    else if (msg.type === 'error') { toast(msg.message); render(); }
+  };
+  ws.onclose = () => { $('status').textContent = 'Disconnected, reconnecting…'; setTimeout(connect, 1500); };
+}
+
+async function init() {
+  meta = await (await fetch('/api/meta')).json();
+  for (const s of meta.styles) $('style').append(new Option(STYLE_LABELS[s] || s, s));
+  $('elo').min = meta.elo.min; $('elo').max = meta.elo.max;
+  fillOpenings(); updateEloHint();
+
+  cg = Chessground($('board'), {
+    animation: { duration: 180 },
+    highlight: { lastMove: true, check: true },
+    premovable: { enabled: false },
+    movable: { free: false, showDests: true, events: { after: onUserMove } },
+  });
+
+  const pushSettings = () => { updateEloHint(); send({ type: 'settings', settings: settings() }); };
+  $('elo').addEventListener('input', updateEloHint);
+  $('elo').addEventListener('change', pushSettings);
+  for (const id of ['max', 'style', 'opening', 'movetime']) $(id).addEventListener('change', pushSettings);
+  document.querySelectorAll('input[name=color]').forEach((r) => r.addEventListener('change', fillOpenings));
+  $('new').onclick = () => {
+    flipped = false; render.lastAnalysed = null; $('analysis').innerHTML = '';
+    send({ type: 'new_game', color: chosenColor(), settings: settings() });
+  };
+  $('undo').onclick = () => send({ type: 'undo' });
+  $('resign').onclick = () => { if (state && !state.result && confirm('Resign this game?')) send({ type: 'resign' }); };
+  $('flip').onclick = () => { flipped = !flipped; render(); };
+  $('pgn').onclick = async () => {
+    try { await navigator.clipboard.writeText(state.pgn); toast('PGN copied'); }
+    catch { prompt('Copy PGN:', state.pgn); }
+  };
+  $('analyse').addEventListener('change', () => { render.lastAnalysed = null; render(); });
+  connect();
+}
+init();
+</script>
+</body>
+</html>
