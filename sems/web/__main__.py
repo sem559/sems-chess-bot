@@ -1,5 +1,6 @@
 """Run the web GUI: `sems-chess` (or `python -m sems.web`) [--port 8000] [--no-browser]"""
 import argparse
+import os
 import threading
 import webbrowser
 
@@ -12,6 +13,10 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--no-browser", action="store_true", help="don't open a browser tab")
     args = parser.parse_args()
+    if args.host not in ("127.0.0.1", "localhost", "::1"):
+        # Reachable from other devices: accept any Host name, but still only same-origin pages.
+        os.environ["SEMS_ALLOWED_HOSTS"] = "*"
+        print(f"Warning: listening on {args.host}, so other devices on your network can open the game.")
     url = f"http://{args.host}:{args.port}"
     print(f"Sem's Chess Bot is running at {url}  (Ctrl+C to stop)")
     if not args.no_browser:

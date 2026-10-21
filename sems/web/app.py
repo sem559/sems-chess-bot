@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 import mimetypes
+import os
 import random
 from pathlib import Path
+from urllib.parse import urlparse
 
 import chess
 import chess.pgn
@@ -12,6 +14,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from ..bot import MoveDecision, SemsBot
 from ..config import MAX_ELO, MIN_ELO, BotSettings, Style
@@ -28,8 +31,29 @@ BOOK = OpeningBook.load()
 PERSONALITIES = load_personalities()
 REPORT_DEPTH, REPORT_SECONDS = 12, 0.2  # per position: fast enough for a ~10 s report
 
+MAX_SESSIONS = 4  # each game runs its own Stockfish process
+MAX_ANALYSIS_SECONDS = 5.0
+
+# The app is meant for this computer only. Rejecting other Host names blocks DNS-rebinding
+# tricks, and the Origin check below stops other websites from opening game sessions.
+# `sems-chess --host 0.0.0.0` sets this to "*" to allow other devices on your network.
+ALLOWED_HOSTS = [h.strip() for h in os.environ.get("SEMS_ALLOWED_HOSTS", "127.0.0.1,localhost,::1").split(",") if h.strip()]
+
 app = FastAPI(title="Sem's Chess Bot")
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=ALLOWED_HOSTS)
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
+_active_sessions = 0
+
+
+def _origin_allowed(ws: WebSocket) -> bool:
+    """Browsers always send Origin; it must be this app itself, not some other website."""
+    origin = ws.headers.get("origin")
+    if origin is None:
+        return True  # not a browser (e.g. a local script), which already has full access
+    parsed = urlparse(origin)
+    if "*" in ALLOWED_HOSTS:
+        return parsed.netloc == ws.headers.get("host")
+    return parsed.hostname in ALLOWED_HOSTS and parsed.netloc == ws.headers.get("host")
 
 
 @app.get("/")
@@ -194,6 +218,16 @@ async def _report(session: GameSession, ws: WebSocket) -> None:
     await ws.send_json({"type": "report", "human": "white" if session.human else "black", **session.report})
 
 
+CLIENT_SETTING_FIELDS = {"elo", "style", "opening", "movetime"}  # threads/hash stay server defaults
+
+
+def _client_settings(msg: dict) -> BotSettings:
+    raw = msg.get("settings") or {}
+    if not isinstance(raw, dict):
+        raise ValueError("settings must be an object")
+    return BotSettings(**{k: v for k, v in raw.items() if k in CLIENT_SETTING_FIELDS})
+
+
 async def _handle(session: GameSession, ws: WebSocket, msg: dict) -> None:
     kind = msg.get("type")
     if kind == "new_game":
@@ -201,7 +235,7 @@ async def _handle(session: GameSession, ws: WebSocket, msg: dict) -> None:
         if color == "random":
             color = random.choice(["white", "black"])
         session.human = _color(color)
-        base = BotSettings(**msg.get("settings", {}))
+        base = _client_settings(msg)
         session.personality = PERSONALITIES.get(msg.get("personality") or "")
         if session.personality:
             session.settings = session.personality.settings(not session.human, movetime=base.movetime)
@@ -217,7 +251,7 @@ async def _handle(session: GameSession, ws: WebSocket, msg: dict) -> None:
         await _bot_turn(session, ws)
 
     elif kind == "settings":
-        new = BotSettings(**msg.get("settings", {}))
+        new = _client_settings(msg)
         if session.personality and msg.get("personality") == session.personality.id:
             session.settings = session.settings.model_copy(update={"movetime": new.movetime})
         else:  # switched to custom settings mid-game
@@ -258,7 +292,8 @@ async def _handle(session: GameSession, ws: WebSocket, msg: dict) -> None:
     elif kind == "analyse":
         bot = await session.bot()
         board = session.board.copy()
-        lines = await run_in_threadpool(bot.analyse, board, float(msg.get("seconds", 0.8)), 3)
+        seconds = min(MAX_ANALYSIS_SECONDS, max(0.1, float(msg.get("seconds", 0.8))))
+        lines = await run_in_threadpool(bot.analyse, board, seconds, 3)
         sign = 1 if board.turn == chess.WHITE else -1
         await ws.send_json({
             "type": "analysis",
@@ -277,6 +312,14 @@ async def _handle(session: GameSession, ws: WebSocket, msg: dict) -> None:
 
 @app.websocket("/ws/game")
 async def game_socket(ws: WebSocket) -> None:
+    global _active_sessions
+    if not _origin_allowed(ws):
+        await ws.close(code=1008)  # policy violation: another website tried to connect
+        return
+    if _active_sessions >= MAX_SESSIONS:
+        await ws.close(code=1013)  # try again later
+        return
+    _active_sessions += 1
     await ws.accept()
     session = GameSession()
     try:
@@ -290,4 +333,5 @@ async def game_socket(ws: WebSocket) -> None:
     except WebSocketDisconnect:
         pass
     finally:
+        _active_sessions -= 1
         session.close()

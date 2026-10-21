@@ -4,7 +4,7 @@ from fastapi.testclient import TestClient
 from sems.config import stockfish_path
 from sems.web.app import app
 
-client = TestClient(app)
+client = TestClient(app, base_url="http://127.0.0.1:8000")
 
 
 def test_meta():
@@ -38,7 +38,7 @@ def test_game_flow():
         stockfish_path()
     except FileNotFoundError:
         pytest.skip("Stockfish not installed")
-    with client.websocket_connect("/ws/game") as ws:
+    with client.websocket_connect("ws://127.0.0.1:8000/ws/game") as ws:
         _recv_state(ws)
         ws.send_json({"type": "new_game", "color": "white", "settings": {"elo": 1500, "movetime": 0.1}})
         state = _recv_state(ws)
@@ -70,7 +70,7 @@ def test_bot_opens_when_playing_white_with_repertoire():
         stockfish_path()
     except FileNotFoundError:
         pytest.skip("Stockfish not installed")
-    with client.websocket_connect("/ws/game") as ws:
+    with client.websocket_connect("ws://127.0.0.1:8000/ws/game") as ws:
         _recv_state(ws)
         ws.send_json({"type": "new_game", "color": "black", "settings": {"opening": "london", "movetime": 0.1}})
         _recv_state(ws)

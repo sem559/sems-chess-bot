@@ -194,9 +194,9 @@ def _recv(ws, kind):
 def test_web_personality_game_and_report():
     from sems.web.app import app
 
-    client = TestClient(app)
+    client = TestClient(app, base_url="http://127.0.0.1:8000")
     assert any(p["id"] == "bongcloud_bob" for p in client.get("/api/meta").json()["personalities"])
-    with client.websocket_connect("/ws/game") as ws:
+    with client.websocket_connect("ws://127.0.0.1:8000/ws/game") as ws:
         _recv(ws, "state")
         ws.send_json({"type": "new_game", "color": "black", "personality": "bongcloud_bob", "settings": {"movetime": 0.1}})
         state = _recv(ws, "state")
