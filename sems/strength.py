@@ -23,6 +23,11 @@ STYLE_WINDOW_CP = {
     Style.SOLID: 20,
     Style.TACTICAL: 25,
     Style.GAMBIT: 50,
+    Style.BONGCLOUD: 60,
+    Style.PAWN_STORM: 60,
+    Style.KNIGHT_RIDER: 70,
+    Style.COWARD: 50,
+    Style.NEVER_CASTLES: 0,  # plays the engine's best move that isn't castling
 }
 
 

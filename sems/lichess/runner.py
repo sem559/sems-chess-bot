@@ -26,10 +26,12 @@ from ..bot import SemsBot
 from ..config import BotSettings
 from ..engine import EngineWrapper
 from ..openings import OpeningBook
+from ..personalities import Chatter, load_personalities
 
 log = logging.getLogger("sems.lichess")
 CONFIG = Path(__file__).resolve().parent / "config.yaml"
 BOOK = OpeningBook.load()
+PERSONALITIES = load_personalities()
 
 
 def load_config(path: Path = CONFIG) -> dict:
@@ -59,10 +61,28 @@ def should_accept(challenge: dict, cfg: dict, active_games: int) -> tuple[bool, 
 def persona_for(speed: str | None, color: chess.Color, cfg: dict) -> BotSettings:
     engine = cfg.get("engine", {})
     data = {**cfg["personas"]["default"], **cfg["personas"].get(speed or "", {})}
+    personality = PERSONALITIES.get(data.get("personality") or "")
+    if personality:
+        return personality.settings(color, threads=engine.get("threads", 1), hash_mb=engine.get("hash_mb", 128))
+    data.pop("personality", None)
     opening = data.get("opening")
     if opening and opening in BOOK.openings and BOOK.get(opening).side != ("white" if color else "black"):
         data["opening"] = None
     return BotSettings(threads=engine.get("threads", 1), hash_mb=engine.get("hash_mb", 128), **data)
+
+
+def personality_for(speed: str | None, cfg: dict):
+    data = {**cfg["personas"]["default"], **cfg["personas"].get(speed or "", {})}
+    return PERSONALITIES.get(data.get("personality") or "")
+
+
+def _chat(client, game_id: str, text: str | None) -> None:
+    if not text:
+        return
+    try:
+        client.bots.post_message(game_id, text)
+    except Exception:  # chat is cosmetic; never let it break a game
+        log.warning("game %s: could not post chat", game_id, exc_info=True)
 
 
 def _seconds(value: Any) -> float:
@@ -99,6 +119,7 @@ def play_game(client, game_id: str, my_id: str, bot: SemsBot, cfg: dict, max_thi
     settings = BotSettings()
     initial_fen = chess.STARTING_FEN
     status = "started"
+    chatter: Chatter | None = None
     for event in client.bots.stream_game_state(game_id):
         kind = event.get("type")
         if kind == "gameFull":
@@ -110,9 +131,13 @@ def play_game(client, game_id: str, my_id: str, bot: SemsBot, cfg: dict, max_thi
             fen = event.get("initialFen", "startpos")
             initial_fen = chess.STARTING_FEN if fen == "startpos" else fen
             settings = persona_for(event.get("speed"), color, cfg)
+            personality = personality_for(event.get("speed"), cfg)
+            chatter = Chatter(personality) if personality else None
             log.info("game %s: playing as %s with %s", game_id, "white" if color else "black",
                      settings.model_dump(mode="json", exclude={"threads", "hash_mb", "use_polyglot", "movetime"}))
             state = event["state"]
+            if chatter and len(state.get("moves", "").split()) < 2:  # not on reconnects mid-game
+                _chat(client, game_id, chatter.greet())
         elif kind == "gameState":
             state = event
         else:
@@ -121,6 +146,10 @@ def play_game(client, game_id: str, my_id: str, bot: SemsBot, cfg: dict, max_thi
         status = state.get("status", "started")
         if status != "started":
             log.info("game %s finished: %s (winner: %s)", game_id, status, state.get("winner"))
+            if chatter and status not in ("aborted", "noStart"):
+                winner = state.get("winner")
+                result = "1/2-1/2" if winner is None else ("1-0" if winner == "white" else "0-1")
+                _chat(client, game_id, chatter.game_over(result, color))
             return status
 
         board = chess.Board(initial_fen)
@@ -198,6 +227,7 @@ class _FakeBots:
         self.bot_color = bot_color
         self.rng = random.Random(seed)
         self.events: queue.Queue = queue.Queue()
+        self.chat: list[str] = []
 
     def _state(self, status: str | None = None) -> dict:
         outcome = self.board.outcome(claim_draw=True)
@@ -238,6 +268,9 @@ class _FakeBots:
 
     def resign_game(self, game_id: str) -> None:
         self.events.put(self._state("resign"))
+
+    def post_message(self, game_id: str, text: str, spectator: bool = False) -> None:
+        self.chat.append(text)
 
 
 class FakeClient:

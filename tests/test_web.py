@@ -14,7 +14,16 @@ def test_meta():
 
 
 def test_index_served():
-    assert "Sem's Chess Bot" in client.get("/").text
+    html = client.get("/").text
+    assert "Sem's Chess Bot" in html
+    assert "cdn.jsdelivr" not in html  # everything is served locally
+
+
+def test_bundled_board_assets_served():
+    js = client.get("/static/vendor/chessground/chessground.min.js")
+    assert js.status_code == 200 and "Chessground" in js.text
+    assert "javascript" in js.headers["content-type"]  # ES modules need a JS MIME type
+    assert client.get("/static/vendor/chessground/chessground.cburnett.css").status_code == 200
 
 
 def _recv_state(ws):

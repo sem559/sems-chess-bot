@@ -1,0 +1,146 @@
+[
+  {
+    "id": "fish_prime", "name": "Fish Prime", "avatar": "🐟",
+    "tagline": "Pure Stockfish 19 at full strength. No gimmicks.",
+    "elo": null, "style": "balanced", "openings": {},
+    "lines": {
+      "greeting": ["Hello. I have evaluated your chances.", "Ready when you are. I am always ready."],
+      "check": ["Check."],
+      "capture": ["Material is material."],
+      "blunder": ["That was an error.", "Evaluation updated in my favour."],
+      "winning": ["The outcome is no longer in doubt."],
+      "losing": ["Interesting. Please continue."],
+      "win": ["Good game. Analysis available on request."],
+      "loss": ["Impressive. Please tell my developers."],
+      "draw": ["A fair result."]
+    }
+  },
+  {
+    "id": "gambit_gary", "name": "Gambit Gary", "avatar": "🎩",
+    "tagline": "1400 · Sacrifices first, asks questions never. Danish Gambit / Stafford Gambit.",
+    "elo": 1400, "style": "gambit", "openings": {"white": "danish", "black": "stafford"},
+    "lines": {
+      "greeting": ["Pawns are a currency, and I'm a big spender!", "Care to accept a gift? Several, actually."],
+      "check": ["Check! Keep that king busy.", "Knock knock. Check!"],
+      "capture": ["Thank you kindly.", "I'll take that as a tip."],
+      "blunder": ["Ooh, now THAT was a real gift!", "And they say I'm the reckless one."],
+      "winning": ["The initiative is paying dividends!"],
+      "losing": ["Sometimes the gambit gambits back...", "Material is overrated. Probably."],
+      "win": ["Fortune favours the bold! Good game.", "Who needs pawns anyway? GG!"],
+      "loss": ["Worth it. Every single pawn. Good game!", "Next time I'll sacrifice MORE."],
+      "draw": ["A draw? How dreadfully sensible."]
+    }
+  },
+  {
+    "id": "the_wall", "name": "The Wall", "avatar": "🧱",
+    "tagline": "2200 · Solid as a rock. London System / Caro-Kann.",
+    "elo": 2200, "style": "solid", "openings": {"white": "london", "black": "caro_kann"},
+    "lines": {
+      "greeting": ["Let's keep things calm and tidy.", "I hope you brought a chisel."],
+      "check": ["A small check. Nothing dramatic."],
+      "capture": ["Simplification is a virtue.", "Fewer pieces, fewer problems."],
+      "blunder": ["Thank you. I will now consolidate.", "Unforced. I'll take it."],
+      "winning": ["Now we trade down and go home."],
+      "losing": ["A crack in the wall. Unusual.", "Hmm. Time to dig in."],
+      "win": ["Patience wins again. Good game.", "Brick by brick. GG."],
+      "loss": ["The wall has fallen. Well played.", "You found a way through. Respect."],
+      "draw": ["A draw. My natural habitat."]
+    }
+  },
+  {
+    "id": "bongcloud_bob", "name": "Bongcloud Bob", "avatar": "👑",
+    "tagline": "1200 · The king leads from the front. Always 1.e4 and 2.Ke2.",
+    "elo": 1200, "style": "bongcloud", "openings": {},
+    "lines": {
+      "greeting": ["My king needs some fresh air.", "Castling is for cowards. Let's walk."],
+      "check": ["Check! The king approves."],
+      "capture": ["Royal tax collected.", "The king takes what the king wants."],
+      "blunder": ["Even my king saw that one coming.", "Long live the king!"],
+      "winning": ["The Bongcloud is unstoppable!"],
+      "losing": ["Perhaps the king should have stayed home...", "The king is... sightseeing."],
+      "win": ["Bongcloud supremacy! GG.", "Told you. Kings can walk."],
+      "loss": ["The king will walk again. GG.", "Worth it for the vibes."],
+      "draw": ["The king accepts your treaty."]
+    }
+  },
+  {
+    "id": "knightmare", "name": "Knightmare", "avatar": "🐴",
+    "tagline": "1600 · Loves knights more than is reasonable. Four Knights / Alekhine.",
+    "elo": 1600, "style": "knight_rider", "openings": {"white": "four_knights", "black": "alekhine"},
+    "lines": {
+      "greeting": ["Neigh. Let's play.", "Bishops are just knights that can't jump."],
+      "check": ["Fork incoming? Maybe. Check!", "Hop. Check."],
+      "capture": ["Hop, skip, capture.", "Nobody sees the knight coming."],
+      "blunder": ["You left that square unguarded. My horse noticed.", "A knight's dream!"],
+      "winning": ["The cavalry has arrived!"],
+      "losing": ["My horses are... tired.", "Even knights have off days."],
+      "win": ["The knights ride victorious! GG.", "L-shaped victory. Good game!"],
+      "loss": ["Back to the stables. Well played.", "My horse needs a rest. GG."],
+      "draw": ["A peaceful pasture. Draw."]
+    }
+  },
+  {
+    "id": "pawnzilla", "name": "Pawnzilla", "avatar": "🦖",
+    "tagline": "1800 · Pawn storms on every board. King's Gambit / Dutch.",
+    "elo": 1800, "style": "pawn_storm", "openings": {"white": "kings_gambit", "black": "dutch"},
+    "lines": {
+      "greeting": ["RAWR. Pawns, march!", "I hope your king likes company."],
+      "check": ["Stomp. Check."],
+      "capture": ["Crunch.", "Pawns eat everything."],
+      "blunder": ["The pawns smell weakness!", "RAWR! Thanks!"],
+      "winning": ["The pawn wave cannot be stopped!"],
+      "losing": ["Some of my pawns got lost...", "Pawnzilla is... regrouping."],
+      "win": ["Pawnzilla wins! RAWR. GG.", "Never underestimate a pawn. Good game!"],
+      "loss": ["Pawnzilla retreats to the ocean. GG.", "Defeated! Well played, tiny human."],
+      "draw": ["The pawns are tired. Draw."]
+    }
+  },
+  {
+    "id": "coward_carl", "name": "Coward Carl", "avatar": "🐔",
+    "tagline": "1500 · Trades everything, retreats often. Scotch / Petrov.",
+    "elo": 1500, "style": "coward", "openings": {"white": "scotch", "black": "petrov"},
+    "lines": {
+      "greeting": ["Please be gentle.", "Can we just trade everything and go home?"],
+      "check": ["Sorry! Sorry. Check."],
+      "capture": ["Let's trade. Please trade.", "One less scary piece."],
+      "blunder": ["Oh! Oh no, did you mean that?", "I'll take it... nervously."],
+      "winning": ["I'm winning? I'm scared."],
+      "losing": ["I knew this would happen.", "Can I offer a draw? Can I?"],
+      "win": ["I won?! Good game, phew.", "I didn't mean to! GG!"],
+      "loss": ["As expected. Good game.", "I'll go hide now. GG."],
+      "draw": ["A draw! My favourite result!", "Safety first. Draw!"]
+    }
+  },
+  {
+    "id": "never_castle_nelly", "name": "Never-Castle Nelly", "avatar": "🏰",
+    "tagline": "1700 · Refuses to castle. On principle. Vienna Gambit / Scandinavian.",
+    "elo": 1700, "style": "never_castles", "openings": {"white": "vienna_gambit", "black": "scandinavian"},
+    "lines": {
+      "greeting": ["Castling is a scam invented by rooks.", "My king stays right where he is."],
+      "check": ["Check! Your king should have stayed put too."],
+      "capture": ["Mine now.", "Thank you!"],
+      "blunder": ["And you castled for THIS?", "Should have kept your king in the middle."],
+      "winning": ["See? The middle is perfectly safe."],
+      "losing": ["This has nothing to do with castling.", "Still not castling."],
+      "win": ["Uncastled and undefeated! GG.", "Castling: still unnecessary. Good game!"],
+      "loss": ["I regret nothing. GG.", "Fine. Maybe castling has SOME uses. Good game."],
+      "draw": ["A draw, and I never castled. Win-win."]
+    }
+  },
+  {
+    "id": "the_magician", "name": "The Magician", "avatar": "✨",
+    "tagline": "2500 · Sharp, forcing, tactical. Evans Gambit / Najdorf.",
+    "elo": 2500, "style": "tactical", "openings": {"white": "evans_gambit", "black": "najdorf"},
+    "lines": {
+      "greeting": ["Pick a card. Any card.", "Let's take this game into the deep, dark forest."],
+      "check": ["Abracadabra. Check.", "Now you see it... check."],
+      "capture": ["And for my next trick...", "Poof. Gone."],
+      "blunder": ["You've been tricked!", "The audience gasps!"],
+      "winning": ["The finale approaches."],
+      "losing": ["Every magician has a failed trick...", "Hmm, the rabbit escaped."],
+      "win": ["Ta-da! Good game.", "Thank you, you've been a wonderful audience!"],
+      "loss": ["You saw through my illusions. Bravo!", "The magician bows to you. GG."],
+      "draw": ["A tie. The trick was... sharing."]
+    }
+  }
+]

@@ -4,23 +4,27 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Sem's Chess Bot</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/chessground@9.2.1/assets/chessground.base.css">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/chessground@9.2.1/assets/chessground.brown.css">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/chessground@9.2.1/assets/chessground.cburnett.css">
+<!-- chessground 9.2.1 (GPL-3.0, lichess-org), bundled so the app works offline -->
+<link rel="stylesheet" href="/static/vendor/chessground/chessground.base.css">
+<link rel="stylesheet" href="/static/vendor/chessground/chessground.brown.css">
+<link rel="stylesheet" href="/static/vendor/chessground/chessground.cburnett.css">
 <style>
   :root {
     --bg: #f4f1ec; --panel: #ffffff; --ink: #1f1d1a; --muted: #6d675f; --line: #e3ddd3;
     --accent: #b5651d; --accent-ink: #ffffff; --good: #2f7d4f; --bad: #b23b3b;
     --bar-white: #f7f4ef; --bar-black: #2a2723;
+    --inacc: #b8860b; --mistake: #d2691e; --blunder: #c0392b;
   }
   @media (prefers-color-scheme: dark) {
     :root {
       --bg: #161512; --panel: #211f1c; --ink: #ece8e1; --muted: #9c958a; --line: #34312c;
       --accent: #d98a3d; --accent-ink: #161512; --good: #6cc38d; --bad: #c95454;
       --bar-white: #e9e5dd; --bar-black: #3b3834;
+      --inacc: #e0b84a; --mistake: #e8914a; --blunder: #e5645a;
     }
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
   body { margin: 0; background: var(--bg); color: var(--ink);
          font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
   main { max-width: 1120px; margin: 0 auto; padding: 24px 16px;
@@ -38,10 +42,19 @@
   .board-meta { grid-column: 2; display: flex; justify-content: space-between; color: var(--muted);
                 font-size: 13px; margin-top: 6px; min-height: 20px; }
 
+  .speaker { grid-column: 2; display: flex; gap: 10px; align-items: flex-start; min-height: 46px; }
+  .speaker .avatar { font-size: 30px; line-height: 1; width: 42px; height: 42px; display: grid; place-items: center;
+                     background: var(--panel); border: 1px solid var(--line); border-radius: 50%; flex: none; }
+  .speaker .who { font-size: 12px; font-weight: 700; color: var(--muted); }
+  .bubble { position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+            padding: 6px 10px; margin-top: 2px; font-size: 14px; min-height: 31px; transition: opacity .25s; }
+  .bubble.fade { opacity: 0; }
+
   aside { display: flex; flex-direction: column; gap: 16px; }
   .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
   h1 { font-size: 20px; margin: 0 0 2px; letter-spacing: -.01em; }
-  .sub { color: var(--muted); font-size: 13px; margin: 0 0 14px; }
+  h2 { font-size: 15px; margin: 0 0 10px; }
+  .sub { color: var(--muted); font-size: 13px; margin: 0 0 6px; }
   label.field { display: block; font-size: 12px; font-weight: 600; text-transform: uppercase;
                 letter-spacing: .04em; color: var(--muted); margin: 12px 0 5px; }
   select, input[type=range] { width: 100%; }
@@ -56,11 +69,20 @@
   .seg label { text-align: center; padding: 7px 0; cursor: pointer; font-size: 14px; }
   .seg input:checked + label { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
   .seg input:focus-visible + label { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+  .opponents { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+  .opp { display: grid; place-items: center; aspect-ratio: 1; font-size: 24px; padding: 0;
+         border: 1px solid var(--line); border-radius: 8px; background: var(--bg); cursor: pointer; }
+  .opp[aria-pressed=true] { border: 2px solid var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--bg)); }
+  .opp.custom { font-size: 13px; font-weight: 600; }
+  .opp-name { font-weight: 700; margin-top: 8px; font-size: 14px; }
+
   button { font: inherit; border-radius: 6px; border: 1px solid var(--line); background: var(--bg);
            color: var(--ink); padding: 7px 12px; cursor: pointer; }
   button:hover { border-color: var(--accent); }
   button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent);
                    font-weight: 600; width: 100%; margin-top: 16px; padding: 10px; }
+  button.wide { width: 100%; margin-top: 8px; }
   .actions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 12px; }
   .actions button { padding: 7px 0; font-size: 13px; }
 
@@ -69,12 +91,24 @@
   #source { font-size: 13px; color: var(--muted); min-height: 19px; }
   #moves { margin-top: 10px; max-height: 220px; overflow-y: auto; display: grid;
            grid-template-columns: 34px 1fr 1fr; font-variant-numeric: tabular-nums; font-size: 14px; }
-  #moves span { padding: 2px 4px; } #moves .n { color: var(--muted); }
-  #moves .cur { background: color-mix(in srgb, var(--accent) 22%, transparent); border-radius: 4px; }
+  #moves span { padding: 2px 4px; border-radius: 4px; } #moves .n { color: var(--muted); }
+  #moves .cur { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+  #moves .click { cursor: pointer; } #moves .click:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+  .m-inaccuracy { color: var(--inacc); font-weight: 700; }
+  .m-mistake { color: var(--mistake); font-weight: 700; }
+  .m-blunder { color: var(--blunder); font-weight: 700; }
   .toggle { display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; }
   #analysis { margin-top: 8px; font-size: 13px; display: flex; flex-direction: column; gap: 6px; }
   #analysis .line { display: flex; gap: 8px; } #analysis .sc { font-weight: 700; min-width: 48px; font-variant-numeric: tabular-nums; }
   #analysis .pv { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .acc { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; text-align: center; }
+  .acc .big { font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .acc .lbl { font-size: 12px; color: var(--muted); }
+  .acc .counts { font-size: 13px; margin-top: 2px; }
+  #graph { width: 100%; height: 90px; margin-top: 12px; cursor: crosshair; display: block;
+           border-radius: 6px; background: var(--bar-black); }
+  #ply-info { font-size: 13px; margin-top: 8px; min-height: 20px; }
 
   dialog { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--ink); padding: 14px; }
   dialog::backdrop { background: rgb(0 0 0 / .35); }
@@ -89,6 +123,10 @@
 <main>
   <section>
     <div class="board-wrap">
+      <div class="speaker" id="speaker" hidden>
+        <span class="avatar" id="spk-avatar"></span>
+        <div><div class="who" id="spk-name"></div><div class="bubble" id="spk-text"></div></div>
+      </div>
       <div class="evalbar" id="evalbar" title="Engine evaluation"><div class="white" id="evalfill"></div><div class="label" id="evallabel"></div></div>
       <div id="board"></div>
       <div class="board-meta"><span id="source"></span></div>
@@ -98,7 +136,12 @@
   <aside>
     <div class="card">
       <h1>Sem's Chess Bot</h1>
-      <p class="sub">Stockfish 19 core · openings · playstyles · ELO</p>
+      <p class="sub">Stockfish 19 core · personalities · openings · ELO</p>
+
+      <label class="field">Opponent</label>
+      <div class="opponents" id="opponents" role="group" aria-label="Opponent"></div>
+      <div class="opp-name" id="opp-name"></div>
+      <div class="hint" id="opp-tagline"></div>
 
       <label class="field">Play as</label>
       <div class="seg">
@@ -107,19 +150,21 @@
         <input type="radio" name="color" id="c-black" value="black"><label for="c-black">Black</label>
       </div>
 
-      <label class="field" for="elo">Bot strength</label>
-      <div class="row">
-        <input class="grow" type="range" id="elo" min="400" max="3190" step="10" value="1500">
-        <span class="elo-value" id="elo-value">1500</span>
+      <div id="custom">
+        <label class="field" for="elo">Bot strength</label>
+        <div class="row">
+          <input class="grow" type="range" id="elo" min="400" max="3190" step="10" value="1500">
+          <span class="elo-value" id="elo-value">1500</span>
+        </div>
+        <label class="toggle" style="margin-top:6px"><input type="checkbox" id="max"> Full strength (no limit)</label>
+        <div class="hint" id="elo-hint"></div>
+
+        <label class="field" for="style">Playstyle</label>
+        <select id="style"></select>
+
+        <label class="field" for="opening">Bot's opening</label>
+        <select id="opening"></select>
       </div>
-      <label class="toggle" style="margin-top:6px"><input type="checkbox" id="max"> Full strength (no limit)</label>
-      <div class="hint" id="elo-hint"></div>
-
-      <label class="field" for="style">Playstyle</label>
-      <select id="style"></select>
-
-      <label class="field" for="opening">Bot's opening</label>
-      <select id="opening"></select>
 
       <label class="field" for="movetime">Think time per move</label>
       <select id="movetime">
@@ -142,6 +187,21 @@
         <button id="resign">Resign</button>
         <button id="pgn" title="Copy PGN to clipboard">PGN</button>
       </div>
+      <button class="wide" id="report-btn" hidden>📈 Game report</button>
+    </div>
+
+    <div class="card" id="report-card" hidden>
+      <h2>Game report</h2>
+      <div id="report-progress" class="hint"></div>
+      <div id="report-body" hidden>
+        <div class="acc">
+          <div><div class="big" id="acc-you"></div><div class="lbl">Your accuracy</div><div class="counts" id="cnt-you"></div></div>
+          <div><div class="big" id="acc-bot"></div><div class="lbl" id="acc-bot-lbl">Bot accuracy</div><div class="counts" id="cnt-bot"></div></div>
+        </div>
+        <svg id="graph" viewBox="0 0 300 90" preserveAspectRatio="none" role="img" aria-label="Evaluation graph"></svg>
+        <div id="ply-info"></div>
+        <button class="wide" id="back-live" hidden>Back to the game</button>
+      </div>
     </div>
 
     <div class="card">
@@ -158,15 +218,19 @@
 <div id="toast" role="status"></div>
 
 <script type="module">
-import { Chessground } from 'https://cdn.jsdelivr.net/npm/chessground@9.2.1/+esm';
+import { Chessground } from '/static/vendor/chessground/chessground.min.js';
 
 const $ = (id) => document.getElementById(id);
 let meta, state, ws, cg, thinking = false, flipped = false;
+let opponent = 'custom', report = null, viewPly = null;
 
 const STYLE_LABELS = {
   balanced: 'Balanced: plays like Stockfish', aggressive: 'Aggressive: checks, attacks, pawn storms',
   solid: 'Solid: safe king, trades when ahead', tactical: 'Tactical: forcing, sharp lines',
   gambit: 'Gambit: sacrifices for initiative',
+  bongcloud: 'Bongcloud: 1.e4, 2.Ke2, king walks', pawn_storm: 'Pawn Storm: every pawn marches',
+  knight_rider: 'Knight Rider: knights first, always', coward: 'Coward: trades everything, retreats',
+  never_castles: 'Never Castles: on principle',
 };
 
 function toast(msg) {
@@ -183,9 +247,56 @@ function settings() {
     movetime: Number($('movetime').value),
   };
 }
+function newGame() {
+  flipped = false; viewPly = null; report = null; render.lastAnalysed = null;
+  $('analysis').innerHTML = ''; $('report-card').hidden = true;
+  send({ type: 'new_game', color: chosenColor(), settings: settings(), personality: opponent === 'custom' ? null : opponent });
+}
 
+// ---------- opponents ----------
+function buildOpponents() {
+  const box = $('opponents');
+  const make = (id, label, title, cls = '') => {
+    const b = document.createElement('button');
+    b.className = `opp ${cls}`; b.textContent = label; b.title = title; b.dataset.id = id;
+    b.setAttribute('aria-label', title);
+    b.onclick = () => selectOpponent(id);
+    box.append(b);
+  };
+  for (const p of meta.personalities) make(p.id, p.avatar, p.name);
+  make('custom', 'Custom', 'Custom settings', 'custom');
+  selectOpponent(localStorageGet('opponent') || 'gambit_gary');
+}
+function selectOpponent(id) {
+  if (id !== 'custom' && !meta.personalities.some((p) => p.id === id)) id = 'custom';
+  opponent = id;
+  localStorageSet('opponent', id);
+  document.querySelectorAll('.opp').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.id === id)));
+  const p = meta.personalities.find((p) => p.id === id);
+  $('opp-name').textContent = p ? `${p.avatar} ${p.name}` : 'Custom';
+  $('custom').hidden = !!p;
+  updateTagline();
+}
+function updateTagline() {
+  const p = meta.personalities.find((p) => p.id === opponent);
+  let text = p ? p.tagline : 'Pick strength, style and opening yourself.';
+  const current = state && state.personality ? state.personality.id : 'custom';
+  if (state && state.moves.length && current !== opponent) text += ' (applies to your next game)';
+  $('opp-tagline').textContent = text;
+}
+function localStorageGet(k) { try { return localStorage.getItem(`sems:${k}`); } catch { return null; } }
+function localStorageSet(k, v) { try { localStorage.setItem(`sems:${k}`, v); } catch {} }
+
+function showChat(msg) {
+  $('speaker').hidden = false;
+  $('spk-avatar').textContent = msg.avatar; $('spk-name').textContent = msg.name;
+  const b = $('spk-text');
+  b.classList.add('fade');
+  setTimeout(() => { b.textContent = msg.text; b.classList.remove('fade'); }, 150);
+}
+
+// ---------- settings panel ----------
 function fillOpenings() {
-  // Openings only matter at the start of a game, so follow the "Play as" picker for the next game.
   const human = chosenColor();
   const botSide = human === 'white' ? 'black' : human === 'black' ? 'white' : null;
   const sel = $('opening'), keep = sel.value;
@@ -199,7 +310,6 @@ function fillOpenings() {
   }
   sel.value = [...sel.options].some((o) => o.value === keep) ? keep : '';
 }
-
 function updateEloHint() {
   const max = $('max').checked, elo = Number($('elo').value), style = $('style').value;
   $('elo').disabled = max;
@@ -209,9 +319,11 @@ function updateEloHint() {
     : (elo >= meta.elo.native_min && style === 'balanced' ? "Uses Stockfish's calibrated ELO limiter." : 'Approximate ELO (sampled from engine candidates).');
 }
 
+// ---------- eval helpers ----------
 function evalToText(ev) {
   if (!ev) return '';
   if (ev.mate != null) return `#${ev.mate}`;
+  if (Math.abs(ev.cp) >= 10000) return '#';
   const p = ev.cp / 100; return (p > 0 ? '+' : '') + p.toFixed(1);
 }
 function evalToWhitePct(ev) {
@@ -219,15 +331,14 @@ function evalToWhitePct(ev) {
   if (ev.mate != null) return ev.mate > 0 ? 100 : 0;
   return 50 + 50 * (2 / (1 + Math.exp(-0.00368208 * ev.cp)) - 1);
 }
-
-function renderEval(orientation) {
-  const pct = evalToWhitePct(state.eval);
+function renderEval(ev, orientation) {
+  const pct = evalToWhitePct(ev);
   const bottomIsWhite = orientation === 'white';
   const fill = $('evalfill'), label = $('evallabel');
   fill.style.height = `${bottomIsWhite ? pct : 100 - pct}%`;
   fill.style.background = bottomIsWhite ? 'var(--bar-white)' : 'var(--bar-black)';
   $('evalbar').style.background = bottomIsWhite ? 'var(--bar-black)' : 'var(--bar-white)';
-  label.textContent = evalToText(state.eval);
+  label.textContent = evalToText(ev);
   const whiteAhead = pct >= 50;
   const atBottom = whiteAhead === bottomIsWhite;
   label.style.top = atBottom ? 'auto' : '0';
@@ -235,28 +346,34 @@ function renderEval(orientation) {
   label.style.color = whiteAhead ? 'var(--bar-black)' : 'var(--bar-white)';
 }
 
+// ---------- main render ----------
+function orientation() { return flipped ? (state.human === 'white' ? 'black' : 'white') : state.human; }
+
 function render() {
   if (!state) return;
-  const orientation = flipped ? (state.human === 'white' ? 'black' : 'white') : state.human;
-  const canMove = !state.result && !thinking && state.turn === state.human;
-  cg.set({
-    fen: state.fen,
-    orientation,
-    turnColor: state.turn,
-    lastMove: state.last_move || undefined,
-    check: state.check,
-    movable: { color: canMove ? state.human : undefined, dests: new Map(Object.entries(state.dests)) },
-  });
-  renderEval(orientation);
-
-  const moves = $('moves'); moves.innerHTML = '';
-  state.san.forEach((san, i) => {
-    if (i % 2 === 0) { const n = document.createElement('span'); n.className = 'n'; n.textContent = `${i / 2 + 1}.`; moves.append(n); }
-    const s = document.createElement('span'); s.textContent = san; if (i === state.san.length - 1) s.className = 'cur'; moves.append(s);
-  });
-  moves.scrollTop = moves.scrollHeight;
+  const orient = orientation();
+  if (viewPly != null && report) {
+    const p = report.plies[viewPly - 1];
+    const uci = state.moves[viewPly - 1];
+    cg.set({ fen: p.fen, orientation: orient, lastMove: [uci.slice(0, 2), uci.slice(2, 4)], check: false,
+             movable: { color: undefined, dests: new Map() } });
+    renderEval(p.eval, orient);
+  } else {
+    const canMove = !state.result && !thinking && state.turn === state.human;
+    cg.set({
+      fen: state.fen, orientation: orient, turnColor: state.turn,
+      lastMove: state.last_move || undefined, check: state.check,
+      movable: { color: canMove ? state.human : undefined, dests: new Map(Object.entries(state.dests)) },
+    });
+    renderEval(state.eval, orient);
+    if (!$('analyse').checked) $('analysis').innerHTML = '';
+    else if (canMove && render.lastAnalysed !== state.fen) { render.lastAnalysed = state.fen; send({ type: 'analyse', seconds: 0.8 }); }
+  }
+  renderMoves();
+  renderReportInfo();
 
   $('source').textContent = state.bot_source ? `Bot move source: ${state.bot_source}` : '';
+  if (!state.personality) $('speaker').hidden = true;
   const st = $('status'); st.className = '';
   if (state.result) {
     const r = state.result.result;
@@ -267,21 +384,76 @@ function render() {
   } else {
     st.textContent = thinking ? 'Bot is thinking…' : state.turn === state.human ? `Your move (${state.human})` : 'Waiting for bot…';
   }
-  if (!$('analyse').checked) $('analysis').innerHTML = '';
-  else if (canMove && render.lastAnalysed !== state.fen) { render.lastAnalysed = state.fen; send({ type: 'analyse', seconds: 0.8 }); }
+  $('report-btn').hidden = !(state.result && state.moves.length);
 }
 
-function renderAnalysis(msg) {
-  if (!state || msg.fen !== state.fen || !$('analyse').checked) return;
-  $('analysis').innerHTML = '';
-  for (const l of msg.lines) {
-    const row = document.createElement('div'); row.className = 'line';
-    const sc = document.createElement('span'); sc.className = 'sc'; sc.textContent = evalToText(l);
-    const pv = document.createElement('span'); pv.className = 'pv'; pv.textContent = l.san; pv.title = `${l.san} (depth ${l.depth})`;
-    row.append(sc, pv); $('analysis').append(row);
+function renderMoves() {
+  const moves = $('moves'); moves.innerHTML = '';
+  const current = viewPly ?? state.san.length;
+  state.san.forEach((san, i) => {
+    if (i % 2 === 0) { const n = document.createElement('span'); n.className = 'n'; n.textContent = `${i / 2 + 1}.`; moves.append(n); }
+    const s = document.createElement('span');
+    const p = report && report.plies[i];
+    s.textContent = san + (p ? p.symbol : '');
+    if (p && p.mark) s.classList.add(`m-${p.mark}`);
+    if (i === current - 1) s.classList.add('cur');
+    if (report) { s.classList.add('click'); s.onclick = () => { viewPly = i + 1; render(); }; }
+    moves.append(s);
+  });
+  if (viewPly == null) moves.scrollTop = moves.scrollHeight;
+}
+
+// ---------- report ----------
+function counts(c) { return `${c.inaccuracy} ?! · ${c.mistake} ? · ${c.blunder} ??`; }
+
+function renderReport() {
+  $('report-card').hidden = false;
+  $('report-progress').textContent = '';
+  $('report-body').hidden = false;
+  const you = report.summary[report.human], bot = report.summary[report.human === 'white' ? 'black' : 'white'];
+  $('acc-you').textContent = you.accuracy == null ? '–' : `${you.accuracy}%`;
+  $('acc-bot').textContent = bot.accuracy == null ? '–' : `${bot.accuracy}%`;
+  $('acc-bot-lbl').textContent = state.personality ? `${state.personality.name}'s accuracy` : 'Bot accuracy';
+  $('cnt-you').textContent = counts(you); $('cnt-bot').textContent = counts(bot);
+
+  const pts = [report.start_pct, ...report.plies.map((p) => p.white_pct)];
+  const n = Math.max(1, pts.length - 1);
+  const x = (i) => (i / n) * 300, y = (pct) => 90 - (pct / 100) * 90;
+  const line = pts.map((p, i) => `${x(i).toFixed(1)},${y(p).toFixed(1)}`).join(' L');
+  let svg = `<path d="M0,90 L${line} L300,90 Z" fill="var(--bar-white)"/>`;
+  svg += `<line x1="0" y1="45" x2="300" y2="45" stroke="var(--muted)" stroke-width="0.5" stroke-dasharray="3 3"/>`;
+  report.plies.forEach((p, i) => {
+    if (p.mark && p.mark !== 'inaccuracy') {
+      svg += `<circle cx="${x(i + 1)}" cy="${y(p.white_pct)}" r="3" fill="var(--${p.mark})" stroke="var(--panel)" stroke-width="1"/>`;
+    }
+  });
+  svg += `<line id="graph-cursor" x1="0" y1="0" x2="0" y2="90" stroke="var(--accent)" stroke-width="1.5" visibility="hidden"/>`;
+  $('graph').innerHTML = svg;
+  render();
+}
+
+function renderReportInfo() {
+  const info = $('ply-info'), back = $('back-live'), cursor = document.getElementById('graph-cursor');
+  if (!report || viewPly == null) {
+    info.textContent = report ? 'Click the graph or a move to review it.' : '';
+    back.hidden = true;
+    if (cursor) cursor.setAttribute('visibility', 'hidden');
+    return;
+  }
+  const p = report.plies[viewPly - 1];
+  const moveNo = `${Math.ceil(p.ply / 2)}${p.color === 'white' ? '.' : '…'}`;
+  let text = `${moveNo} ${p.san}${p.symbol} (${evalToText(p.eval)})`;
+  if (p.mark && p.best_san) text += ` — ${p.mark}. Best was ${p.best_san}.`;
+  else if (p.best_san === p.san || !p.mark) text += ' — fine.';
+  info.textContent = text;
+  back.hidden = false;
+  if (cursor) {
+    const xPos = (viewPly / Math.max(1, report.plies.length)) * 300;
+    cursor.setAttribute('x1', xPos); cursor.setAttribute('x2', xPos); cursor.setAttribute('visibility', 'visible');
   }
 }
 
+// ---------- moves ----------
 function onUserMove(orig, dest) {
   const piece = cg.state.pieces.get(dest);
   const promoting = piece && piece.role === 'pawn' && (dest[1] === '8' || dest[1] === '1');
@@ -300,22 +472,42 @@ function onUserMove(orig, dest) {
 function connect() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   ws = new WebSocket(`${proto}://${location.host}/ws/game`);
-  ws.onopen = () => send({ type: 'new_game', color: chosenColor(), settings: settings() });
+  ws.onopen = () => newGame();
   ws.onmessage = (e) => {
     const msg = JSON.parse(e.data);
-    if (msg.type === 'state') { state = msg; thinking = false; render(); }
-    else if (msg.type === 'thinking') { thinking = true; render(); }
+    if (msg.type === 'state') {
+      if (!state || msg.moves.length !== state.moves.length || msg.fen !== state.fen) {
+        report = null; viewPly = null; $('report-card').hidden = true;
+      }
+      state = msg; thinking = false; updateTagline(); render();
+    } else if (msg.type === 'thinking') { thinking = true; render(); }
+    else if (msg.type === 'chat') showChat(msg);
     else if (msg.type === 'analysis') renderAnalysis(msg);
+    else if (msg.type === 'report_progress') {
+      $('report-card').hidden = false; $('report-body').hidden = true;
+      $('report-progress').textContent = `Analysing position ${msg.done} of ${msg.total}…`;
+    } else if (msg.type === 'report') { report = msg; viewPly = null; renderReport(); }
     else if (msg.type === 'error') { toast(msg.message); render(); }
   };
   ws.onclose = () => { $('status').textContent = 'Disconnected, reconnecting…'; setTimeout(connect, 1500); };
+}
+
+function renderAnalysis(msg) {
+  if (!state || msg.fen !== state.fen || !$('analyse').checked) return;
+  $('analysis').innerHTML = '';
+  for (const l of msg.lines) {
+    const row = document.createElement('div'); row.className = 'line';
+    const sc = document.createElement('span'); sc.className = 'sc'; sc.textContent = evalToText(l);
+    const pv = document.createElement('span'); pv.className = 'pv'; pv.textContent = l.san; pv.title = `${l.san} (depth ${l.depth})`;
+    row.append(sc, pv); $('analysis').append(row);
+  }
 }
 
 async function init() {
   meta = await (await fetch('/api/meta')).json();
   for (const s of meta.styles) $('style').append(new Option(STYLE_LABELS[s] || s, s));
   $('elo').min = meta.elo.min; $('elo').max = meta.elo.max;
-  fillOpenings(); updateEloHint();
+  fillOpenings(); updateEloHint(); buildOpponents();
 
   cg = Chessground($('board'), {
     animation: { duration: 180 },
@@ -324,15 +516,16 @@ async function init() {
     movable: { free: false, showDests: true, events: { after: onUserMove } },
   });
 
-  const pushSettings = () => { updateEloHint(); send({ type: 'settings', settings: settings() }); };
+  const pushSettings = () => {
+    updateEloHint();
+    send({ type: 'settings', settings: settings(), personality: opponent === 'custom' ? null : opponent });
+  };
   $('elo').addEventListener('input', updateEloHint);
   $('elo').addEventListener('change', pushSettings);
-  for (const id of ['max', 'style', 'opening', 'movetime']) $(id).addEventListener('change', pushSettings);
+  for (const id of ['max', 'style', 'opening']) $(id).addEventListener('change', () => { if (opponent === 'custom') pushSettings(); });
+  $('movetime').addEventListener('change', pushSettings);
   document.querySelectorAll('input[name=color]').forEach((r) => r.addEventListener('change', fillOpenings));
-  $('new').onclick = () => {
-    flipped = false; render.lastAnalysed = null; $('analysis').innerHTML = '';
-    send({ type: 'new_game', color: chosenColor(), settings: settings() });
-  };
+  $('new').onclick = newGame;
   $('undo').onclick = () => send({ type: 'undo' });
   $('resign').onclick = () => { if (state && !state.result && confirm('Resign this game?')) send({ type: 'resign' }); };
   $('flip').onclick = () => { flipped = !flipped; render(); };
@@ -340,6 +533,25 @@ async function init() {
     try { await navigator.clipboard.writeText(state.pgn); toast('PGN copied'); }
     catch { prompt('Copy PGN:', state.pgn); }
   };
+  $('report-btn').onclick = () => {
+    if (report) { $('report-card').hidden = false; return; }
+    $('report-card').hidden = false; $('report-body').hidden = true;
+    $('report-progress').textContent = 'Starting analysis…';
+    send({ type: 'report' });
+  };
+  $('back-live').onclick = () => { viewPly = null; render(); };
+  $('graph').addEventListener('click', (e) => {
+    if (!report || !report.plies.length) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    const frac = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+    viewPly = Math.max(1, Math.round(frac * report.plies.length));
+    render();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (!report || e.target.closest('input, select, textarea')) return;
+    if (e.key === 'ArrowLeft') { viewPly = Math.max(1, (viewPly ?? report.plies.length + 1) - 1); render(); }
+    if (e.key === 'ArrowRight' && viewPly != null) { viewPly = viewPly >= report.plies.length ? null : viewPly + 1; render(); }
+  });
   $('analyse').addEventListener('change', () => { render.lastAnalysed = null; render(); });
   connect();
 }

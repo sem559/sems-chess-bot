@@ -11,7 +11,7 @@ from .config import BotSettings, polyglot_books
 from .engine import Candidate, EngineWrapper
 from .openings import OpeningBook, polyglot_move
 from .strength import StrengthPlan, plan_for
-from .styles import pick
+from .styles import pick, style_override
 
 # Easy-move detection for fixed think time: probe with this share of the budget, and stop
 # early if the best move beats the second best by at least this many centipawns.
@@ -23,7 +23,7 @@ MIN_PROBE_MOVETIME = 0.2  # below this the probe overhead isn't worth it
 @dataclass
 class MoveDecision:
     move: chess.Move
-    source: str  # "repertoire" | "polyglot" | "engine" | "forced"
+    source: str  # "repertoire" | "style" | "polyglot" | "engine" | "easy" | "forced"
     score_cp: int | None = None  # side to move's POV
     mate: int | None = None
     pv: list[chess.Move] = field(default_factory=list)
@@ -63,6 +63,9 @@ class SemsBot:
             move = self.book.next_move(board, settings.opening, self.rng)
             if move is not None:
                 return MoveDecision(move, "repertoire")
+        move = style_override(board, settings.style)
+        if move is not None:
+            return MoveDecision(move, "style")
         if settings.use_polyglot and self._polyglot:
             move = polyglot_move(board, self._polyglot, self.rng)
             if move is not None and move in board.legal_moves:
@@ -80,7 +83,7 @@ class SemsBot:
             limit = chess.engine.Limit(time=movetime)
             # Easy-move check only at full strength: weakened play must go through the limiter.
             if settings.elo is None and movetime >= MIN_PROBE_MOVETIME:
-                easy = self._easy_move(board, plan, movetime * EASY_PROBE_FRACTION)
+                easy = self._easy_move(board, settings, plan, movetime * EASY_PROBE_FRACTION)
                 if easy is not None:
                     return easy
                 limit = chess.engine.Limit(time=movetime * (1 - EASY_PROBE_FRACTION))  # hash is warm
@@ -96,7 +99,9 @@ class SemsBot:
         chosen = pick(board, cands, settings.style, plan.window_cp, plan.temperature_cp, self.rng)
         return self._decision(chosen.move, chosen)
 
-    def _easy_move(self, board: chess.Board, plan: StrengthPlan, probe_time: float) -> MoveDecision | None:
+    def _easy_move(
+        self, board: chess.Board, settings: BotSettings, plan: StrengthPlan, probe_time: float
+    ) -> MoveDecision | None:
         """Short multi-line search; if one move is far ahead of the rest, play it now."""
         cands = self.engine.analyse(board, chess.engine.Limit(time=probe_time), multipv=max(2, plan.multipv))
         if len(cands) < 2:
@@ -104,7 +109,16 @@ class SemsBot:
         best, second = cands[0], cands[1]
         if best.score_cp - second.score_cp < max(EASY_GAP_CP, plan.window_cp):
             return None
-        return MoveDecision(best.move, "easy", best.score_cp, best.mate, best.pv)
+        chosen = pick(board, cands, settings.style, plan.window_cp)  # keeps style rules (e.g. never castle)
+        return MoveDecision(chosen.move, "easy", chosen.score_cp, chosen.mate, chosen.pv)
+
+    def evaluate(self, board: chess.Board, depth: int = 14, seconds: float = 0.3) -> Candidate | None:
+        """Full-strength single-line evaluation (for post-game reports)."""
+        if board.is_game_over():
+            return None
+        self.engine.configure({"UCI_LimitStrength": False, "Skill Level": 20})
+        cands = self.engine.analyse(board, chess.engine.Limit(depth=depth, time=seconds), multipv=1)
+        return cands[0] if cands else None
 
     def analyse(self, board: chess.Board, seconds: float = 0.5, lines: int = 3) -> list[Candidate]:
         """Full-strength analysis for the GUI's analysis mode."""

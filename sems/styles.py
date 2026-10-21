@@ -94,7 +94,64 @@ def style_bonus(board: chess.Board, cand: Candidate, style: Style) -> float:
         else:
             bonus += 15 * sac
 
+    elif style == Style.BONGCLOUD:
+        if piece and piece.piece_type == chess.KING and not board.is_castling(move):
+            bonus += 20  # the king likes to get out and about
+
+    elif style == Style.PAWN_STORM:
+        if piece and piece.piece_type == chess.PAWN:
+            bonus += 25 + 10 * capture
+            if enemy_king is not None and abs(chess.square_file(move.to_square) - chess.square_file(enemy_king)) <= 2:
+                bonus += 15
+
+    elif style == Style.KNIGHT_RIDER:
+        if piece and piece.piece_type == chess.KNIGHT:
+            bonus += 40 + 10 * capture
+
+    elif style == Style.COWARD:
+        captured = board.piece_at(move.to_square)
+        if capture and piece is not None and captured is not None:
+            if abs(PIECE_CP[captured.piece_type] - PIECE_CP[piece.piece_type]) <= 30:
+                bonus += 40  # any trade is a good trade
+                if captured.piece_type == chess.QUEEN:
+                    bonus += 60  # especially the scary one
+        if piece and piece.piece_type != chess.PAWN:
+            toward_home = -1 if us == chess.WHITE else 1
+            if (chess.square_rank(move.to_square) - chess.square_rank(move.from_square)) * toward_home > 0:
+                bonus += 10  # retreat!
+        bonus -= 10 * check  # don't poke the bear
+
     return bonus
+
+
+def forbidden(board: chess.Board, move: chess.Move, style: Style) -> bool:
+    """Hard rules a style never breaks while it has any alternative."""
+    return style == Style.NEVER_CASTLES and board.is_castling(move)
+
+
+def _allows_mate_in_one(board: chess.Board, move: chess.Move) -> bool:
+    after = board.copy(stack=False)
+    after.push(move)
+    for reply in after.legal_moves:
+        after.push(reply)
+        mate = after.is_checkmate()
+        after.pop()
+        if mate:
+            return True
+    return False
+
+
+def style_override(board: chess.Board, style: Style) -> chess.Move | None:
+    """Signature moves played without asking the engine: the Bongcloud's 1.e4 and 2.Ke2."""
+    if style != Style.BONGCLOUD or board.root() != chess.Board() or len(board.move_stack) >= 4:
+        return None
+    white = board.turn == chess.WHITE
+    king_walk = chess.Move.from_uci("e1e2" if white else "e8e7")
+    pawn = chess.Move.from_uci("e2e4" if white else "e7e5")
+    for move in (king_walk, pawn):
+        if move in board.legal_moves and not _allows_mate_in_one(board, move):
+            return move
+    return None
 
 
 def pick(
@@ -108,6 +165,8 @@ def pick(
     """Pick among candidates within `window_cp` of the best, biased by style, optionally sampled."""
     if not candidates:
         raise ValueError("no candidates")
+    allowed = [c for c in candidates if not forbidden(board, c.move, style)]
+    candidates = allowed or candidates
     best = max(c.score_cp for c in candidates)
     eligible = [c for c in candidates if best - c.score_cp <= window_cp]
     # Never trade a forced mate for a non-mate.

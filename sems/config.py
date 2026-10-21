@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 from enum import Enum
 from pathlib import Path
 
@@ -20,6 +21,12 @@ class Style(str, Enum):
     SOLID = "solid"
     TACTICAL = "tactical"
     GAMBIT = "gambit"
+    # Joke styles: still Stockfish underneath, so harder to beat than they look.
+    BONGCLOUD = "bongcloud"
+    PAWN_STORM = "pawn_storm"
+    KNIGHT_RIDER = "knight_rider"
+    COWARD = "coward"
+    NEVER_CASTLES = "never_castles"
 
 
 class BotSettings(BaseModel):
@@ -33,13 +40,23 @@ class BotSettings(BaseModel):
 
 
 def stockfish_path() -> Path:
+    """STOCKFISH_PATH, else engines/stockfish(.exe) from get_stockfish.py, else `stockfish` on PATH."""
     env = os.environ.get("STOCKFISH_PATH")
-    path = Path(env) if env else ROOT / "engines" / "stockfish.exe"
-    if not path.exists():
-        raise FileNotFoundError(
-            f"Stockfish not found at {path}. Run `python scripts/get_stockfish.py` or set STOCKFISH_PATH."
-        )
-    return path
+    if env:
+        if not Path(env).exists():
+            raise FileNotFoundError(f"STOCKFISH_PATH points to {env}, which doesn't exist.")
+        return Path(env)
+    for name in ("stockfish.exe", "stockfish"):
+        local = ROOT / "engines" / name
+        if local.exists():
+            return local
+    on_path = shutil.which("stockfish")
+    if on_path:
+        return Path(on_path)
+    raise FileNotFoundError(
+        "Stockfish not found. Run `python scripts/get_stockfish.py`, install it (e.g. `brew install stockfish`, "
+        "`sudo apt install stockfish`), or set STOCKFISH_PATH in .env."
+    )
 
 
 def polyglot_books() -> list[Path]:

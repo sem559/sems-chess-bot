@@ -9,6 +9,8 @@ accept:
 
 # Persona per speed. Fields match BotSettings: elo (null = full strength), style, opening.
 # A repertoire opening is only used when its side matches the color the bot gets.
+# Or use a named personality (sems/data/personalities.json); it also chats hello/GG:
+#   blitz: {personality: gambit_gary}
 personas:
   default:   {elo: null, style: balanced, opening: null}
   bullet:    {elo: null, style: balanced}
